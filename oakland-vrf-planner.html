@@ -1,0 +1,1280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Oakland VRF Property Planner - Interactive Planning Tool</title>
+    <meta name="description" content="Plan Vehicular Residential Facilities (VRFs) on Oakland properties with real-time zoning compliance and GIS data integration.">
+    
+    <!-- React and Babel from CDN -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
+        
+        * {
+            box-sizing: border-box;
+        }
+        
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        }
+        
+        #root {
+            min-height: 100vh;
+        }
+        
+        button {
+            font-family: 'DM Sans', -apple-system, sans-serif;
+        }
+        
+        input {
+            font-family: 'DM Sans', -apple-system, sans-serif;
+        }
+        
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        
+        *:focus-visible {
+            outline: 2px solid #60a5fa;
+            outline-offset: 2px;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useRef, useEffect, useCallback } = React;
+        
+        // Lucide Icon Components (inline SVGs)
+        const Move = ({ size = 24, color = "currentColor", ...props }) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+                <polyline points="5 9 2 12 5 15"></polyline>
+                <polyline points="9 5 12 2 15 5"></polyline>
+                <polyline points="15 19 12 22 9 19"></polyline>
+                <polyline points="19 9 22 12 19 15"></polyline>
+                <line x1="2" y1="12" x2="22" y2="12"></line>
+                <line x1="12" y1="2" x2="12" y2="22"></line>
+            </svg>
+        );
+
+        const RotateCw = ({ size = 24, color = "currentColor", ...props }) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+                <polyline points="23 4 23 10 17 10"></polyline>
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+            </svg>
+        );
+
+        const Trash2 = ({ size = 24, color = "currentColor", ...props }) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+                <polyline points="3 6 5 6 21 6"></polyline>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                <line x1="10" y1="11" x2="10" y2="17"></line>
+                <line x1="14" y1="11" x2="14" y2="17"></line>
+            </svg>
+        );
+
+        const Plus = ({ size = 24, color = "currentColor", ...props }) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+        );
+
+        const AlertTriangle = ({ size = 24, color = "currentColor", ...props }) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                <line x1="12" y1="9" x2="12" y2="13"></line>
+                <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
+        );
+
+        const CheckCircle = ({ size = 24, color = "currentColor", ...props }) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                <polyline points="22 4 12 14.01 9 11.01"></polyline>
+            </svg>
+        );
+
+        const Info = ({ size = 24, color = "currentColor", ...props }) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="16" x2="12" y2="12"></line>
+                <line x1="12" y1="8" x2="12.01" y2="8"></line>
+            </svg>
+        );
+
+        const Maximize2 = ({ size = 24, color = "currentColor", ...props }) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+                <polyline points="15 3 21 3 21 9"></polyline>
+                <polyline points="9 21 3 21 3 15"></polyline>
+                <line x1="21" y1="3" x2="14" y2="10"></line>
+                <line x1="3" y1="21" x2="10" y2="14"></line>
+            </svg>
+        );
+
+        const Download = ({ size = 24, color = "currentColor", ...props }) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+        );
+
+        const Search = ({ size = 24, color = "currentColor", ...props }) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+        );
+
+        const Loader = ({ size = 24, color = "currentColor", ...props }) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+                <line x1="12" y1="2" x2="12" y2="6"></line>
+                <line x1="12" y1="18" x2="12" y2="22"></line>
+                <line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line>
+                <line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line>
+                <line x1="2" y1="12" x2="6" y2="12"></line>
+                <line x1="18" y1="12" x2="22" y2="12"></line>
+                <line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line>
+                <line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line>
+            </svg>
+        );
+
+        const MapPin = ({ size = 24, color = "currentColor", ...props }) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                <circle cx="12" cy="10" r="3"></circle>
+            </svg>
+        );
+
+        // Oakland GIS API Configuration
+        const OAKLAND_GIS_CONFIG = {
+          parcelService: 'https://gismaps.oaklandca.gov/oaklandgis/rest/services/Parcel/MapServer',
+          zoningService: 'https://gismaps.oaklandca.gov/oaklandgis/rest/services/PLANNING/MapServer',
+          geocodeService: 'https://gismaps.oaklandca.gov/oaklandgis/rest/services/Locators/Oakland_Streets_Locater/GeocodeServer',
+          parcelLayerId: 0,
+          zoningLayerId: 1
+        };
+
+        // Sample trailer database
+        const TRAILER_LIBRARY = [
+          {
+            id: 't1',
+            name: 'Airstream Bambi 20FB',
+            manufacturer: 'Airstream',
+            length: 20,
+            width: 7.9,
+            interiorSqFt: 204,
+            price: 48000,
+            image: '🚐',
+            color: '#C0C0C0'
+          },
+          {
+            id: 't2',
+            name: 'Forest River R-Pod',
+            manufacturer: 'Forest River',
+            length: 20.3,
+            width: 7,
+            interiorSqFt: 175,
+            price: 22000,
+            image: '🚌',
+            color: '#8B4513'
+          },
+          {
+            id: 't3',
+            name: 'Tumbleweed Farallon',
+            manufacturer: 'Tumbleweed',
+            length: 26,
+            width: 8.5,
+            interiorSqFt: 285,
+            price: 85000,
+            image: '🏠',
+            color: '#2F4F4F'
+          },
+          {
+            id: 't4',
+            name: 'nuCamp TAB 400',
+            manufacturer: 'nuCamp',
+            length: 20,
+            width: 7.3,
+            interiorSqFt: 265,
+            price: 35000,
+            image: '🚐',
+            color: '#FF6B35'
+          }
+        ];
+
+        // Zoning density rules
+        const ZONING_DENSITY_RULES = {
+          'RD-1': { type: 'fixed', maxUnits: 1 },
+          'RD-2': { type: 'conditional', maxUnits: 2, minLotSizeSqFt: 6000 },
+          'RM-1': { type: 'formula', sqFtPerUnit: 2000 },
+          'RM-2': { type: 'formula', sqFtPerUnit: 1500 },
+          'RM-3': { type: 'formula', sqFtPerUnit: 1250 },
+          'RM-4': { type: 'formula', sqFtPerUnit: 1100 }
+        };
+
+        // Geometry conversion helper
+        const convertGeometryToFeet = (geometry) => {
+          if (!geometry?.rings?.[0] || geometry.rings[0].length === 0) {
+            return { width: 50, depth: 100, area: 5000 };
+          }
+
+          const ring = geometry.rings[0];
+          const xCoords = ring.map(p => p[0]);
+          const yCoords = ring.map(p => p[1]);
+          
+          const minX = Math.min(...xCoords);
+          const maxX = Math.max(...xCoords);
+          const minY = Math.min(...yCoords);
+          const maxY = Math.max(...yCoords);
+          
+          const wkid = geometry.spatialReference?.wkid;
+          let widthFeet, depthFeet;
+          
+          if (wkid === 3857) {
+            const metersToFeet = 3.28084;
+            widthFeet = (maxX - minX) * metersToFeet;
+            depthFeet = (maxY - minY) * metersToFeet;
+          } else if (wkid === 2227) {
+            widthFeet = maxX - minX;
+            depthFeet = maxY - minY;
+          } else {
+            const metersToFeet = 3.28084;
+            widthFeet = (maxX - minX) * metersToFeet;
+            depthFeet = (maxY - minY) * metersToFeet;
+          }
+          
+          return {
+            width: Math.max(30, Math.min(widthFeet, 150)),
+            depth: Math.max(50, Math.min(depthFeet, 200)),
+            area: widthFeet * depthFeet
+          };
+        };
+
+        const VRFPropertyPlanner = () => {
+          const [searchAddress, setSearchAddress] = useState('');
+          const [isLoadingProperty, setIsLoadingProperty] = useState(false);
+          const [propertyLoadError, setPropertyLoadError] = useState(null);
+          const [propertyData, setPropertyData] = useState(null);
+          const [property, setProperty] = useState(null);
+          const [placedTrailers, setPlacedTrailers] = useState([]);
+          const [selectedTrailer, setSelectedTrailer] = useState(null);
+          const [dragging, setDragging] = useState(null);
+          const [showLibrary, setShowLibrary] = useState(true);
+          const [scale, setScale] = useState(6);
+          
+          const canvasRef = useRef(null);
+          const placedTrailersRef = useRef(placedTrailers);
+          const draggingRef = useRef(dragging);
+          const propertyRef = useRef(property);
+          const abortControllerRef = useRef(null);
+
+          useEffect(() => { placedTrailersRef.current = placedTrailers; }, [placedTrailers]);
+          useEffect(() => { draggingRef.current = dragging; }, [dragging]);
+          useEffect(() => { propertyRef.current = property; }, [property]);
+
+          const fetchPropertyData = useCallback(async () => {
+            if (!searchAddress.trim()) {
+              setPropertyLoadError('Please enter an address');
+              return;
+            }
+
+            if (abortControllerRef.current) {
+              abortControllerRef.current.abort();
+            }
+
+            const controller = new AbortController();
+            abortControllerRef.current = controller;
+            const { signal } = controller;
+
+            setIsLoadingProperty(true);
+            setPropertyLoadError(null);
+
+            try {
+              const geocodeUrl = `${OAKLAND_GIS_CONFIG.geocodeService}/findAddressCandidates?` + 
+                new URLSearchParams({
+                  SingleLine: searchAddress,
+                  f: 'json',
+                  outFields: '*'
+                });
+
+              const geocodeResponse = await fetch(geocodeUrl, { signal });
+              
+              if (!geocodeResponse.ok) {
+                throw new Error(`Geocode failed: ${geocodeResponse.status}`);
+              }
+              
+              const geocodeData = await geocodeResponse.json();
+
+              if (!geocodeData.candidates || geocodeData.candidates.length === 0) {
+                throw new Error('Address not found in Oakland. Please check the address.');
+              }
+
+              const bestMatch = geocodeData.candidates[0];
+              const { x: longitude, y: latitude } = bestMatch.location;
+
+              const parcelQueryUrl = `${OAKLAND_GIS_CONFIG.parcelService}/${OAKLAND_GIS_CONFIG.parcelLayerId}/query?` + 
+                new URLSearchParams({
+                  geometry: JSON.stringify({ x: longitude, y: latitude, spatialReference: { wkid: 4326 } }),
+                  geometryType: 'esriGeometryPoint',
+                  spatialRel: 'esriSpatialRelIntersects',
+                  outFields: '*',
+                  returnGeometry: 'true',
+                  f: 'json'
+                });
+
+              const parcelResponse = await fetch(parcelQueryUrl, { signal });
+              
+              if (!parcelResponse.ok) {
+                throw new Error(`Parcel query failed: ${parcelResponse.status}`);
+              }
+              
+              const parcelData = await parcelResponse.json();
+
+              if (!parcelData.features || parcelData.features.length === 0) {
+                throw new Error('No parcel data found at this address');
+              }
+
+              const parcel = parcelData.features[0];
+              
+              const zoningQueryUrl = `${OAKLAND_GIS_CONFIG.zoningService}/${OAKLAND_GIS_CONFIG.zoningLayerId}/query?` + 
+                new URLSearchParams({
+                  geometry: JSON.stringify({ x: longitude, y: latitude, spatialReference: { wkid: 4326 } }),
+                  geometryType: 'esriGeometryPoint',
+                  spatialRel: 'esriSpatialRelIntersects',
+                  outFields: '*',
+                  f: 'json'
+                });
+
+              const zoningResponse = await fetch(zoningQueryUrl, { signal });
+              
+              if (!zoningResponse.ok) {
+                throw new Error(`Zoning query failed: ${zoningResponse.status}`);
+              }
+              
+              const zoningData = await zoningResponse.json();
+
+              const dimensions = convertGeometryToFeet(parcel.geometry);
+              const parcelArea = parcel.attributes?.SHAPE_Area || dimensions.area;
+
+              const zoningCode = zoningData.features?.[0]?.attributes?.ZONING || 'RM-2';
+              const zoningRule = ZONING_DENSITY_RULES[zoningCode] || ZONING_DENSITY_RULES['RM-2'];
+              
+              let maxVRFs;
+              if (zoningRule.type === 'fixed') {
+                maxVRFs = zoningRule.maxUnits;
+              } else if (zoningRule.type === 'conditional') {
+                maxVRFs = parcelArea >= zoningRule.minLotSizeSqFt ? zoningRule.maxUnits : 1;
+              } else {
+                maxVRFs = Math.floor(parcelArea / zoningRule.sqFtPerUnit);
+              }
+
+              setPropertyData({
+                address: bestMatch.address,
+                parcel: parcel.attributes || {},
+                zoning: zoningData.features?.[0]?.attributes || {},
+                geometry: parcel.geometry,
+                coordinates: { longitude, latitude }
+              });
+
+              setProperty({
+                width: dimensions.width,
+                depth: dimensions.depth,
+                area: parcelArea,
+                maxVRFs: Math.max(1, Math.min(maxVRFs, 20)),
+                zoningCode: zoningCode,
+                address: bestMatch.address,
+                existingStructure: {
+                  x: 15,
+                  y: 10,
+                  width: Math.min(dimensions.width * 0.6, 30),
+                  height: Math.min(dimensions.depth * 0.4, 40)
+                },
+                driveway: {
+                  x: 0,
+                  y: dimensions.depth * 0.4,
+                  width: 12,
+                  height: dimensions.depth * 0.3
+                }
+              });
+
+              setIsLoadingProperty(false);
+              setPlacedTrailers([]);
+
+            } catch (error) {
+              if (error.name === 'AbortError') return;
+              console.error('Error fetching property data:', error);
+              setPropertyLoadError(error.message || 'Failed to load property data');
+              setIsLoadingProperty(false);
+            }
+          }, [searchAddress]);
+
+          useEffect(() => {
+            setProperty({
+              width: 50,
+              depth: 100,
+              area: 5000,
+              maxVRFs: 4,
+              zoningCode: 'RM-2',
+              address: 'Sample Property (Enter Oakland address to load real data)',
+              existingStructure: { x: 15, y: 10, width: 30, height: 40 },
+              driveway: { x: 0, y: 40, width: 12, height: 30 }
+            });
+          }, []);
+
+          const addTrailer = useCallback((trailerTemplate) => {
+            const newTrailer = {
+              ...trailerTemplate,
+              uniqueId: `${trailerTemplate.id}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              x: 10,
+              y: 60,
+              rotation: 0
+            };
+            setPlacedTrailers(prev => [...prev, newTrailer]);
+            setSelectedTrailer(newTrailer.uniqueId);
+          }, []);
+
+          const rotateTrailer = useCallback((trailerId) => {
+            setPlacedTrailers(prev => prev.map(t => 
+              t.uniqueId === trailerId 
+                ? { ...t, rotation: (t.rotation + 90) % 360, length: t.width, width: t.length }
+                : t
+            ));
+          }, []);
+
+          const removeTrailer = useCallback((trailerId) => {
+            setPlacedTrailers(prev => prev.filter(t => t.uniqueId !== trailerId));
+            setSelectedTrailer(null);
+          }, []);
+
+          const handlePointerDown = useCallback((e, trailerId) => {
+            e.stopPropagation();
+            e.preventDefault();
+            
+            const trailer = placedTrailersRef.current.find(t => t.uniqueId === trailerId);
+            if (!trailer || !canvasRef.current) return;
+            
+            setSelectedTrailer(trailerId);
+            
+            const rect = canvasRef.current.getBoundingClientRect();
+            setDragging({
+              trailerId,
+              offsetX: e.clientX - rect.left - (trailer.x * scale),
+              offsetY: e.clientY - rect.top - (trailer.y * scale)
+            });
+          }, [scale]);
+
+          useEffect(() => {
+            const handlePointerMove = (e) => {
+              const drag = draggingRef.current;
+              const prop = propertyRef.current;
+              
+              if (!drag || !canvasRef.current || !prop) return;
+              
+              const rect = canvasRef.current.getBoundingClientRect();
+              const newX = (e.clientX - rect.left - drag.offsetX) / scale;
+              const newY = (e.clientY - rect.top - drag.offsetY) / scale;
+              
+              setPlacedTrailers(prev => prev.map(t => 
+                t.uniqueId === drag.trailerId 
+                  ? { ...t, 
+                      x: Math.max(0, Math.min(prop.width - t.length, newX)), 
+                      y: Math.max(0, Math.min(prop.depth - t.width, newY)) 
+                    }
+                  : t
+              ));
+            };
+
+            const handlePointerUp = () => setDragging(null);
+
+            document.addEventListener('pointermove', handlePointerMove);
+            document.addEventListener('pointerup', handlePointerUp);
+            document.addEventListener('pointercancel', handlePointerUp);
+
+            return () => {
+              document.removeEventListener('pointermove', handlePointerMove);
+              document.removeEventListener('pointerup', handlePointerUp);
+              document.removeEventListener('pointercancel', handlePointerUp);
+            };
+          }, [scale]);
+
+          const checkCompliance = useCallback(() => {
+            if (!property) return [];
+            
+            const violations = [];
+            
+            if (placedTrailers.length > property.maxVRFs) {
+              violations.push({
+                type: 'zoning',
+                message: `Exceeds maximum VRFs allowed (${property.maxVRFs})`
+              });
+            }
+            
+            for (let i = 0; i < placedTrailers.length; i++) {
+              for (let j = i + 1; j < placedTrailers.length; j++) {
+                const t1 = placedTrailers[i];
+                const t2 = placedTrailers[j];
+                
+                const overlapX = (t1.x < t2.x + t2.length) && (t1.x + t1.length > t2.x);
+                const overlapY = (t1.y < t2.y + t2.width) && (t1.y + t1.width > t2.y);
+                
+                let distance = Infinity;
+                
+                if (overlapX && overlapY) {
+                  distance = 0;
+                } else if (overlapX) {
+                  distance = Math.min(
+                    Math.abs(t1.y - (t2.y + t2.width)),
+                    Math.abs(t2.y - (t1.y + t1.width))
+                  );
+                } else if (overlapY) {
+                  distance = Math.min(
+                    Math.abs(t1.x - (t2.x + t2.length)),
+                    Math.abs(t2.x - (t1.x + t1.length))
+                  );
+                } else {
+                  const dx = Math.max(0, Math.max(t1.x - (t2.x + t2.length), t2.x - (t1.x + t1.length)));
+                  const dy = Math.max(0, Math.max(t1.y - (t2.y + t2.width), t2.y - (t1.y + t1.width)));
+                  distance = Math.sqrt(dx * dx + dy * dy);
+                }
+                
+                if (distance < 6) {
+                  violations.push({
+                    type: 'spacing',
+                    message: `VRFs must be at least 6 ft apart (${distance.toFixed(1)} ft gap found)`,
+                    trailers: [t1.uniqueId, t2.uniqueId]
+                  });
+                }
+              }
+            }
+            
+            placedTrailers.forEach(trailer => {
+              const struct = property.existingStructure;
+              
+              const overlapX = (trailer.x < struct.x + struct.width) && (trailer.x + trailer.length > struct.x);
+              const overlapY = (trailer.y < struct.y + struct.height) && (trailer.y + trailer.width > struct.y);
+              
+              let minDist = Infinity;
+              
+              if (overlapX && overlapY) {
+                minDist = 0;
+              } else if (overlapX) {
+                minDist = Math.min(
+                  Math.abs(trailer.y - (struct.y + struct.height)),
+                  Math.abs(struct.y - (trailer.y + trailer.width))
+                );
+              } else if (overlapY) {
+                minDist = Math.min(
+                  Math.abs(trailer.x - (struct.x + struct.width)),
+                  Math.abs(struct.x - (trailer.x + trailer.length))
+                );
+              } else {
+                const dx = Math.max(0, Math.max(trailer.x - (struct.x + struct.width), struct.x - (trailer.x + trailer.length)));
+                const dy = Math.max(0, Math.max(trailer.y - (struct.y + struct.height), struct.y - (trailer.y + trailer.width)));
+                minDist = Math.sqrt(dx * dx + dy * dy);
+              }
+              
+              if (minDist < 6) {
+                violations.push({
+                  type: 'setback',
+                  message: `${trailer.name} too close to main structure (${minDist.toFixed(1)} ft, min 6 ft required)`,
+                  trailers: [trailer.uniqueId]
+                });
+              }
+            });
+            
+            return violations;
+          }, [property, placedTrailers]);
+
+          const violations = checkCompliance();
+          const isCompliant = violations.length === 0 && placedTrailers.length > 0;
+          const totalCost = placedTrailers.reduce((sum, t) => sum + t.price, 0);
+
+          if (!property) {
+            return (
+              <div style={{
+                fontFamily: '"DM Sans", -apple-system, sans-serif',
+                minHeight: '100vh',
+                background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+                color: '#f1f5f9',
+                padding: '2rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <div style={{ textAlign: 'center', maxWidth: '600px' }}>
+                  <MapPin size={64} style={{ color: '#60a5fa', margin: '0 auto 1.5rem' }} />
+                  <h1 style={{ fontSize: '2rem', marginBottom: '1rem' }}>Loading VRF Property Planner...</h1>
+                  <p style={{ color: '#94a3b8' }}>Initializing application</p>
+                </div>
+              </div>
+            );
+          }
+
+          return (
+            <div style={{
+              fontFamily: '"DM Sans", -apple-system, sans-serif',
+              minHeight: '100vh',
+              background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+              color: '#f1f5f9',
+              padding: '0'
+            }}>
+              {/* Header */}
+              <div style={{
+                background: 'rgba(15, 23, 42, 0.95)',
+                backdropFilter: 'blur(20px)',
+                borderBottom: '1px solid rgba(148, 163, 184, 0.1)',
+                padding: '1.5rem 2rem',
+                position: 'sticky',
+                top: 0,
+                zIndex: 100,
+                boxShadow: '0 4px 24px rgba(0, 0, 0, 0.3)'
+              }}>
+                <div style={{ maxWidth: '1600px', margin: '0 auto' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '2rem', flexWrap: 'wrap' }}>
+                    <div style={{ flex: 1, minWidth: '300px' }}>
+                      <h1 style={{ 
+                        margin: 0, 
+                        fontSize: '1.75rem', 
+                        fontWeight: 700,
+                        letterSpacing: '-0.02em',
+                        background: 'linear-gradient(135deg, #60a5fa 0%, #818cf8 100%)',
+                        WebkitBackgroundClip: 'text',
+                        WebkitTextFillColor: 'transparent',
+                        backgroundClip: 'text'
+                      }}>
+                        VRF Property Planner
+                      </h1>
+                      
+                      <div style={{ marginTop: '1rem', display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                        <div style={{ flex: 1, position: 'relative', minWidth: '250px', maxWidth: '500px' }}>
+                          <input
+                            type="text"
+                            value={searchAddress}
+                            onChange={(e) => setSearchAddress(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && fetchPropertyData()}
+                            placeholder="Enter Oakland address (e.g., 123 Oak St)"
+                            disabled={isLoadingProperty}
+                            style={{
+                              width: '100%',
+                              background: 'rgba(30, 41, 59, 0.8)',
+                              border: '1px solid rgba(148, 163, 184, 0.2)',
+                              borderRadius: '8px',
+                              padding: '0.75rem 1rem 0.75rem 2.5rem',
+                              color: '#f1f5f9',
+                              fontSize: '0.875rem',
+                              outline: 'none'
+                            }}
+                          />
+                          <MapPin size={18} style={{
+                            position: 'absolute',
+                            left: '0.75rem',
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            color: '#64748b',
+                            pointerEvents: 'none'
+                          }} />
+                        </div>
+                        
+                        <button
+                          onClick={fetchPropertyData}
+                          disabled={isLoadingProperty}
+                          style={{
+                            background: 'linear-gradient(135deg, #60a5fa 0%, #818cf8 100%)',
+                            border: 'none',
+                            borderRadius: '8px',
+                            padding: '0.75rem 1.5rem',
+                            color: 'white',
+                            fontSize: '0.875rem',
+                            fontWeight: 600,
+                            cursor: isLoadingProperty ? 'not-allowed' : 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            opacity: isLoadingProperty ? 0.6 : 1
+                          }}
+                        >
+                          {isLoadingProperty ? (
+                            <>
+                              <Loader size={16} style={{ animation: 'spin 1s linear infinite' }} />
+                              Loading...
+                            </>
+                          ) : (
+                            <>
+                              <Search size={16} />
+                              Load Property
+                            </>
+                          )}
+                        </button>
+                      </div>
+                      
+                      {propertyLoadError && (
+                        <p style={{ margin: '0.5rem 0 0', fontSize: '0.875rem', color: '#ef4444', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <AlertTriangle size={16} />
+                          {propertyLoadError}
+                        </p>
+                      )}
+                      
+                      {!propertyLoadError && (
+                        <p style={{ margin: '0.5rem 0 0', fontSize: '0.875rem', color: '#94a3b8' }}>
+                          {property.address} · {property.zoningCode} · Max {property.maxVRFs} VRFs · {Math.round(property.area).toLocaleString()} sq ft
+                        </p>
+                      )}
+                    </div>
+                    
+                    <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: '0.75rem', color: '#94a3b8', textTransform: 'uppercase' }}>
+                          Total Investment
+                        </div>
+                        <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#60a5fa' }}>
+                          ${(totalCost / 1000).toFixed(0)}K
+                        </div>
+                      </div>
+                      
+                      <div style={{
+                        background: isCompliant ? '#10b981' : violations.length > 0 ? '#ef4444' : '#475569',
+                        border: 'none',
+                        borderRadius: '8px',
+                        padding: '0.75rem 1.5rem',
+                        color: 'white',
+                        fontSize: '0.875rem',
+                        fontWeight: 600,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem'
+                      }}>
+                        {isCompliant ? <CheckCircle size={18} /> : <AlertTriangle size={18} />}
+                        {isCompliant ? 'Compliant' : violations.length > 0 ? `${violations.length} Issues` : 'Add Trailers'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Main Content */}
+              <div style={{ 
+                maxWidth: '1600px', 
+                margin: '0 auto', 
+                padding: '2rem',
+                display: 'grid',
+                gridTemplateColumns: showLibrary ? '320px 1fr' : '1fr',
+                gap: '2rem',
+                alignItems: 'start'
+              }}>
+                {/* Trailer Library */}
+                {showLibrary && (
+                  <aside style={{
+                    background: 'rgba(30, 41, 59, 0.6)',
+                    backdropFilter: 'blur(20px)',
+                    borderRadius: '16px',
+                    border: '1px solid rgba(148, 163, 184, 0.1)',
+                    padding: '1.5rem',
+                    height: 'fit-content',
+                    position: 'sticky',
+                    top: '200px'
+                  }}>
+                    <h3 style={{ 
+                      margin: '0 0 1rem', 
+                      fontSize: '1rem', 
+                      fontWeight: 600,
+                      color: '#f1f5f9',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em',
+                      borderBottom: '2px solid rgba(96, 165, 250, 0.3)',
+                      paddingBottom: '0.75rem'
+                    }}>
+                      VRF Trailer Library
+                    </h3>
+                    
+                    {TRAILER_LIBRARY.map(trailer => (
+                      <div
+                        key={trailer.id}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => addTrailer(trailer)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            addTrailer(trailer);
+                          }
+                        }}
+                        style={{
+                          background: 'rgba(15, 23, 42, 0.6)',
+                          border: '1px solid rgba(148, 163, 184, 0.15)',
+                          borderRadius: '12px',
+                          padding: '1rem',
+                          marginBottom: '0.75rem',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
+                          <div style={{ fontSize: '2rem' }}>{trailer.image}</div>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#f1f5f9' }}>
+                              {trailer.name}
+                            </div>
+                            <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
+                              {trailer.manufacturer}
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div style={{ 
+                          display: 'grid', 
+                          gridTemplateColumns: '1fr 1fr',
+                          gap: '0.5rem',
+                          fontSize: '0.75rem',
+                          borderTop: '1px solid rgba(148, 163, 184, 0.1)',
+                          paddingTop: '0.75rem'
+                        }}>
+                          <div>
+                            <div style={{ color: '#94a3b8' }}>Size</div>
+                            <div style={{ fontWeight: 600, color: '#cbd5e1' }}>{trailer.length}' × {trailer.width}'</div>
+                          </div>
+                          <div>
+                            <div style={{ color: '#94a3b8' }}>Interior</div>
+                            <div style={{ fontWeight: 600, color: '#cbd5e1' }}>{trailer.interiorSqFt} sq ft</div>
+                          </div>
+                          <div style={{ gridColumn: '1 / -1' }}>
+                            <div style={{ color: '#94a3b8' }}>Price</div>
+                            <div style={{ fontWeight: 700, color: '#60a5fa', fontSize: '0.875rem' }}>
+                              ${(trailer.price / 1000).toFixed(0)}K
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div style={{
+                          width: '100%',
+                          marginTop: '0.75rem',
+                          background: 'rgba(96, 165, 250, 0.1)',
+                          border: '1px solid rgba(96, 165, 250, 0.3)',
+                          borderRadius: '6px',
+                          padding: '0.5rem',
+                          color: '#60a5fa',
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.5rem',
+                          pointerEvents: 'none'
+                        }}>
+                          <Plus size={14} /> Add to Property
+                        </div>
+                      </div>
+                    ))}
+                  </aside>
+                )}
+
+                {/* Main Canvas Area */}
+                <main style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                  {violations.length > 0 && (
+                    <div style={{
+                      background: 'rgba(239, 68, 68, 0.1)',
+                      border: '1px solid rgba(239, 68, 68, 0.3)',
+                      borderRadius: '12px',
+                      padding: '1rem 1.25rem'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                        <AlertTriangle size={20} color="#ef4444" />
+                        <h4 style={{ margin: 0, fontSize: '0.875rem', fontWeight: 600, color: '#fecaca' }}>
+                          {violations.length} Compliance {violations.length === 1 ? 'Issue' : 'Issues'}
+                        </h4>
+                      </div>
+                      
+                      {violations.map((v, i) => (
+                        <div key={i} style={{ 
+                          fontSize: '0.8125rem', 
+                          color: '#fca5a5',
+                          marginLeft: '2rem',
+                          marginBottom: i < violations.length - 1 ? '0.5rem' : 0
+                        }}>
+                          • {v.message}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <section style={{
+                    background: 'rgba(30, 41, 59, 0.6)',
+                    backdropFilter: 'blur(20px)',
+                    borderRadius: '16px',
+                    border: '1px solid rgba(148, 163, 184, 0.1)',
+                    padding: '2rem'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+                      <div>
+                        <h3 style={{ margin: 0, fontSize: '1.125rem', fontWeight: 600 }}>
+                          Property Layout
+                        </h3>
+                        <p style={{ margin: '0.25rem 0 0', fontSize: '0.8125rem', color: '#94a3b8' }}>
+                          {property.width.toFixed(0)}' × {property.depth.toFixed(0)}' lot · {placedTrailers.length} of {property.maxVRFs} VRFs placed
+                        </p>
+                      </div>
+                      
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button style={{
+                          background: 'rgba(148, 163, 184, 0.1)',
+                          border: '1px solid rgba(148, 163, 184, 0.2)',
+                          borderRadius: '6px',
+                          padding: '0.5rem 0.75rem',
+                          color: '#cbd5e1',
+                          fontSize: '0.75rem',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.5rem'
+                        }}>
+                          <Maximize2 size={14} /> Fullscreen
+                        </button>
+                        <button style={{
+                          background: 'rgba(96, 165, 250, 0.1)',
+                          border: '1px solid rgba(96, 165, 250, 0.3)',
+                          borderRadius: '6px',
+                          padding: '0.5rem 0.75rem',
+                          color: '#60a5fa',
+                          fontSize: '0.75rem',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.5rem'
+                        }}>
+                          <Download size={14} /> Export PDF
+                        </button>
+                      </div>
+                    </div>
+
+                    <div
+                      ref={canvasRef}
+                      style={{
+                        position: 'relative',
+                        width: `${property.width * scale}px`,
+                        height: `${property.depth * scale}px`,
+                        background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
+                        border: '2px solid rgba(96, 165, 250, 0.3)',
+                        borderRadius: '8px',
+                        margin: '0 auto',
+                        cursor: dragging ? 'grabbing' : 'default',
+                        boxShadow: 'inset 0 2px 20px rgba(0, 0, 0, 0.5)',
+                        backgroundImage: `
+                          linear-gradient(rgba(148, 163, 184, 0.05) 1px, transparent 1px),
+                          linear-gradient(90deg, rgba(148, 163, 184, 0.05) 1px, transparent 1px)
+                        `,
+                        backgroundSize: `${scale * 5}px ${scale * 5}px`,
+                        touchAction: 'none',
+                        maxWidth: '100%',
+                        overflow: 'auto'
+                      }}
+                    >
+                      <div style={{
+                        position: 'absolute',
+                        top: '-30px',
+                        left: 0,
+                        right: 0,
+                        textAlign: 'center',
+                        fontSize: '0.75rem',
+                        color: '#64748b',
+                        fontWeight: 600
+                      }}>
+                        PROPERTY LINE
+                      </div>
+
+                      <div style={{
+                        position: 'absolute',
+                        left: `${property.existingStructure.x * scale}px`,
+                        top: `${property.existingStructure.y * scale}px`,
+                        width: `${property.existingStructure.width * scale}px`,
+                        height: `${property.existingStructure.height * scale}px`,
+                        background: 'rgba(148, 163, 184, 0.15)',
+                        border: '2px solid rgba(148, 163, 184, 0.4)',
+                        borderRadius: '4px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '0.75rem',
+                        color: '#94a3b8',
+                        fontWeight: 600,
+                        pointerEvents: 'none'
+                      }}>
+                        EXISTING<br/>STRUCTURE
+                      </div>
+
+                      <div style={{
+                        position: 'absolute',
+                        left: `${property.driveway.x * scale}px`,
+                        top: `${property.driveway.y * scale}px`,
+                        width: `${property.driveway.width * scale}px`,
+                        height: `${property.driveway.height * scale}px`,
+                        background: 'repeating-linear-gradient(45deg, rgba(100, 116, 139, 0.1), rgba(100, 116, 139, 0.1) 10px, transparent 10px, transparent 20px)',
+                        border: '1px dashed rgba(100, 116, 139, 0.3)',
+                        pointerEvents: 'none',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '0.7rem',
+                        color: '#64748b',
+                        fontWeight: 600
+                      }}>
+                        DRIVEWAY
+                      </div>
+
+                      {placedTrailers.map(trailer => {
+                        const isSelected = selectedTrailer === trailer.uniqueId;
+                        const hasViolation = violations.some(v => v.trailers?.includes(trailer.uniqueId));
+                        
+                        return (
+                          <div
+                            key={trailer.uniqueId}
+                            onPointerDown={(e) => handlePointerDown(e, trailer.uniqueId)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Delete' || e.key === 'Backspace') {
+                                e.preventDefault();
+                                removeTrailer(trailer.uniqueId);
+                              }
+                            }}
+                            tabIndex={0}
+                            style={{
+                              position: 'absolute',
+                              left: `${trailer.x * scale}px`,
+                              top: `${trailer.y * scale}px`,
+                              width: `${trailer.length * scale}px`,
+                              height: `${trailer.width * scale}px`,
+                              background: hasViolation 
+                                ? 'rgba(239, 68, 68, 0.2)' 
+                                : isSelected 
+                                  ? 'rgba(96, 165, 250, 0.3)' 
+                                  : 'rgba(96, 165, 250, 0.15)',
+                              border: `2px solid ${hasViolation ? '#ef4444' : isSelected ? '#60a5fa' : 'rgba(96, 165, 250, 0.5)'}`,
+                              borderRadius: '6px',
+                              cursor: 'grab',
+                              transition: 'all 0.15s',
+                              boxShadow: isSelected ? '0 8px 32px rgba(96, 165, 250, 0.4)' : '0 4px 16px rgba(0, 0, 0, 0.3)',
+                              transform: `${isSelected ? 'scale(1.02)' : 'scale(1)'} rotate(${trailer.rotation}deg)`,
+                              transformOrigin: 'center center',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '0.25rem',
+                              touchAction: 'none'
+                            }}
+                          >
+                            <div style={{ fontSize: '1.5rem', opacity: 0.9 }}>{trailer.image}</div>
+                            <div style={{ 
+                              fontSize: '0.7rem', 
+                              fontWeight: 600, 
+                              color: isSelected ? '#60a5fa' : '#cbd5e1',
+                              textAlign: 'center',
+                              lineHeight: 1.2
+                            }}>
+                              {trailer.name.split(' ').slice(0, 2).join(' ')}
+                            </div>
+                            <div style={{ 
+                              fontSize: '0.65rem', 
+                              color: '#94a3b8',
+                              fontWeight: 500
+                            }}>
+                              {trailer.length}' × {trailer.width}'
+                            </div>
+
+                            {isSelected && (
+                              <div style={{
+                                position: 'absolute',
+                                top: '-40px',
+                                display: 'flex',
+                                gap: '0.25rem',
+                                background: 'rgba(15, 23, 42, 0.95)',
+                                padding: '0.375rem',
+                                borderRadius: '6px',
+                                border: '1px solid rgba(96, 165, 250, 0.3)',
+                                boxShadow: '0 4px 16px rgba(0, 0, 0, 0.5)'
+                              }}>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    rotateTrailer(trailer.uniqueId);
+                                  }}
+                                  style={{
+                                    background: 'rgba(96, 165, 250, 0.1)',
+                                    border: '1px solid rgba(96, 165, 250, 0.3)',
+                                    borderRadius: '4px',
+                                    padding: '0.375rem',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    color: '#60a5fa'
+                                  }}
+                                >
+                                  <RotateCw size={14} />
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    removeTrailer(trailer.uniqueId);
+                                  }}
+                                  style={{
+                                    background: 'rgba(239, 68, 68, 0.1)',
+                                    border: '1px solid rgba(239, 68, 68, 0.3)',
+                                    borderRadius: '4px',
+                                    padding: '0.375rem',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    color: '#ef4444'
+                                  }}
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+
+                      {placedTrailers.length === 0 && (
+                        <div style={{
+                          position: 'absolute',
+                          inset: 0,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexDirection: 'column',
+                          gap: '1rem',
+                          color: '#64748b',
+                          textAlign: 'center',
+                          padding: '2rem'
+                        }}>
+                          <Info size={48} opacity={0.3} />
+                          <div>
+                            <div style={{ fontSize: '1.125rem', fontWeight: 600, marginBottom: '0.5rem' }}>
+                              Start Planning Your VRF Property
+                            </div>
+                            <div style={{ fontSize: '0.875rem', opacity: 0.8 }}>
+                              Click any trailer from the library to add it to your property.<br/>
+                              Drag to position, rotate, and adjust your layout.
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div style={{
+                      marginTop: '1.5rem',
+                      display: 'flex',
+                      gap: '2rem',
+                      fontSize: '0.75rem',
+                      color: '#94a3b8',
+                      justifyContent: 'center',
+                      flexWrap: 'wrap'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <div style={{ 
+                          width: '16px', 
+                          height: '16px', 
+                          background: 'rgba(96, 165, 250, 0.3)',
+                          border: '2px solid rgba(96, 165, 250, 0.5)',
+                          borderRadius: '3px'
+                        }} />
+                        VRF Trailer
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <div style={{ 
+                          width: '16px', 
+                          height: '16px', 
+                          background: 'rgba(148, 163, 184, 0.15)',
+                          border: '2px solid rgba(148, 163, 184, 0.4)',
+                          borderRadius: '3px'
+                        }} />
+                        Existing Structure
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <AlertTriangle size={14} color="#fbbf24" />
+                        Min 6 ft clearance required
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <Move size={16} color="#94a3b8" />
+                        Drag to Move
+                      </div>
+                    </div>
+                  </section>
+
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                    gap: '1rem'
+                  }}>
+                    <div style={{
+                      background: 'rgba(30, 41, 59, 0.6)',
+                      borderRadius: '12px',
+                      border: '1px solid rgba(148, 163, 184, 0.1)',
+                      padding: '1.25rem'
+                    }}>
+                      <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.5rem', textTransform: 'uppercase' }}>
+                        VRFs Placed
+                      </div>
+                      <div style={{ fontSize: '2rem', fontWeight: 700, color: placedTrailers.length > property.maxVRFs ? '#ef4444' : '#60a5fa' }}>
+                        {placedTrailers.length} / {property.maxVRFs}
+                      </div>
+                    </div>
+
+                    <div style={{
+                      background: 'rgba(30, 41, 59, 0.6)',
+                      borderRadius: '12px',
+                      border: '1px solid rgba(148, 163, 184, 0.1)',
+                      padding: '1.25rem'
+                    }}>
+                      <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.5rem', textTransform: 'uppercase' }}>
+                        Total Living Space
+                      </div>
+                      <div style={{ fontSize: '2rem', fontWeight: 700, color: '#60a5fa' }}>
+                        {placedTrailers.reduce((sum, t) => sum + t.interiorSqFt, 0)} sq ft
+                      </div>
+                    </div>
+
+                    <div style={{
+                      background: 'rgba(30, 41, 59, 0.6)',
+                      borderRadius: '12px',
+                      border: '1px solid rgba(148, 163, 184, 0.1)',
+                      padding: '1.25rem'
+                    }}>
+                      <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.5rem', textTransform: 'uppercase' }}>
+                        Status
+                      </div>
+                      <div style={{ 
+                        fontSize: '1.25rem', 
+                        fontWeight: 700, 
+                        color: isCompliant ? '#10b981' : violations.length > 0 ? '#ef4444' : '#64748b',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem'
+                      }}>
+                        {isCompliant ? (
+                          <><CheckCircle size={24} /> Compliant</>
+                        ) : violations.length > 0 ? (
+                          <><AlertTriangle size={24} /> {violations.length} Issues</>
+                        ) : (
+                          'Not Started'
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </main>
+              </div>
+            </div>
+          );
+        };
+
+        // Render the app
+        ReactDOM.render(<VRFPropertyPlanner />, document.getElementById('root'));
+    </script>
+</body>
+</html>
